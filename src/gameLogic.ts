@@ -22,8 +22,8 @@ export function isValidMove(type: PieceType, fromX: number, fromY: number, toX: 
     case 'knight':
       return (dx === 1 && dy === 2) || (dx === 2 && dy === 1);
     case 'pawn':
-      // Simplified pawn: move 1 forward, capture diagonal
-      const direction = 1; // White enemies move down (increasing Y) towards the black player
+      // Simplified pawn: move 1 forward towards player's Y, capture diagonal
+      const direction = toY > fromY ? 1 : -1; 
       if (toX === fromX && toY === fromY + direction) {
         return !board[toY][toX];
       }

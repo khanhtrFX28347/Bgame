@@ -176,29 +176,30 @@ export default function App() {
     }));
   };
 
+  const [movingEnemyIndex, setMovingEnemyIndex] = useState<number>(-1);
+
   // Enemy AI
   useEffect(() => {
     if (gameState.turn === 'enemy' && !gameState.isGameOver && !gameState.isVictory) {
-      const timer = setTimeout(() => {
-        let newPlayer = { ...gameState.player };
-        let movedEnemies: Piece[] = [];
-        
-        // Function to get current board from pieces
-        const getCurrentBoard = (player: Piece, currentEnemies: Piece[]) => {
-          const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
-          newBoard[player.y][player.x] = player;
-          currentEnemies.forEach(enemy => {
-            newBoard[enemy.y][enemy.x] = enemy;
-          });
-          return newBoard;
-        };
-
-        // AI: All enemies move sequentially to handle overlapping
-        for (const enemy of gameState.enemies) {
+      if (movingEnemyIndex === -1) {
+        setMovingEnemyIndex(0);
+      } else if (movingEnemyIndex < gameState.enemies.length) {
+        const timer = setTimeout(() => {
+          const enemy = gameState.enemies[movingEnemyIndex];
           let updatedEnemy = { ...enemy };
+          let newPlayer = { ...gameState.player };
           
-          // Use the current state of pieces to check pathfinding
-          const currentBoard = getCurrentBoard(newPlayer, [...movedEnemies, ...gameState.enemies.filter(e => !movedEnemies.some(me => me.id === e.id))]);
+          // Function to get current board from pieces
+          const getCurrentBoard = (player: Piece, currentEnemies: Piece[]) => {
+            const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+            newBoard[player.y][player.x] = player;
+            currentEnemies.forEach(e => {
+              newBoard[e.y][e.x] = e;
+            });
+            return newBoard;
+          };
+
+          const currentBoard = getCurrentBoard(newPlayer, gameState.enemies);
           
           // Try to capture player
           if (isValidMove(enemy.type, enemy.x, enemy.y, newPlayer.x, newPlayer.y, currentBoard)) {
@@ -210,12 +211,11 @@ export default function App() {
             for (let ty = 0; ty < BOARD_SIZE; ty++) {
               for (let tx = 0; tx < BOARD_SIZE; tx++) {
                 if (isValidMove(enemy.type, enemy.x, enemy.y, tx, ty, currentBoard)) {
-                  // Check if any OTHER enemy is already at (tx, ty) in the NEW list or OLD list
-                  const isOccupiedByMoved = movedEnemies.some(e => e.x === tx && e.y === ty);
-                  const isOccupiedByWaiting = gameState.enemies.some(e => e.id !== enemy.id && !movedEnemies.some(me => me.id === e.id) && e.x === tx && e.y === ty);
+                  // Check if any OTHER enemy is already at (tx, ty)
+                  const isOccupiedByOtherEnemy = gameState.enemies.some(e => e.id !== enemy.id && e.x === tx && e.y === ty);
                   const isOccupiedByPlayer = newPlayer.x === tx && newPlayer.y === ty;
                   
-                  if (!isOccupiedByMoved && !isOccupiedByWaiting && !isOccupiedByPlayer) {
+                  if (!isOccupiedByOtherEnemy && !isOccupiedByPlayer) {
                     const dist = Math.sqrt(Math.pow(tx - newPlayer.x, 2) + Math.pow(ty - newPlayer.y, 2));
                     possibleMoves.push({ x: tx, y: ty, dist });
                   }
@@ -237,23 +237,31 @@ export default function App() {
             updatedEnemy.rotation = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
           }
           
-          movedEnemies.push(updatedEnemy);
-        }
-
-        const status = checkGameOver(newPlayer, movedEnemies);
+          const newEnemies = [...gameState.enemies];
+          newEnemies[movingEnemyIndex] = updatedEnemy;
+          
+          setGameState(prev => ({
+            ...prev,
+            player: newPlayer,
+            enemies: newEnemies,
+          }));
+          setMovingEnemyIndex(prev => prev + 1);
+        }, 200);
+        return () => clearTimeout(timer);
+      } else {
+        // Finished moving all enemies
+        const status = checkGameOver(gameState.player, gameState.enemies);
         setGameState(prev => ({
           ...prev,
-          player: newPlayer,
-          enemies: movedEnemies,
           turn: 'player',
           isGameOver: status?.isGameOver || false,
           isVictory: status?.isVictory || false,
           message: status?.message || 'Your turn, King.',
         }));
-      }, 600);
-      return () => clearTimeout(timer);
+        setMovingEnemyIndex(-1);
+      }
     }
-  }, [gameState.turn, gameState.player, gameState.enemies, checkGameOver]);
+  }, [gameState.turn, movingEnemyIndex, gameState.player, gameState.enemies, checkGameOver]);
 
   const resetGame = () => {
     setGameState({
