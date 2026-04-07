@@ -9,6 +9,7 @@ export interface Piece {
   y: number;
   hp: number;
   maxHp: number;
+  rotation?: number;
 }
 
 export interface GameState {

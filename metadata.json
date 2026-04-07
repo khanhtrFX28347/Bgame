@@ -1,5 +1,5 @@
 {
   "name": "Remix: Shotgun King: The Final Checkmate Clone",
-  "description": "không thể chạy khi tôi đăng tải lên github, yêu cầu sửa",
+  "description": "A polished clone of Shotgun King: The Final Checkmate. Fixed enemy AI, pawn movement, and deployment configuration for web hosting.",
   "requestFramePermissions": []
 }

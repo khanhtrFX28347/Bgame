@@ -181,52 +181,70 @@ export default function App() {
     if (gameState.turn === 'enemy' && !gameState.isGameOver && !gameState.isVictory) {
       const timer = setTimeout(() => {
         let newPlayer = { ...gameState.player };
-        let newEnemies = [...gameState.enemies];
-        let moved = false;
+        let movedEnemies: Piece[] = [];
+        
+        // Function to get current board from pieces
+        const getCurrentBoard = (player: Piece, currentEnemies: Piece[]) => {
+          const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+          newBoard[player.y][player.x] = player;
+          currentEnemies.forEach(enemy => {
+            newBoard[enemy.y][enemy.x] = enemy;
+          });
+          return newBoard;
+        };
 
-        // Simple AI: Each enemy tries to move towards player or capture
-        newEnemies = newEnemies.map(enemy => {
-          if (moved) return enemy; // Only one enemy moves per turn for simplicity/balance? 
-          // Actually in Shotgun King, all enemies move if they can.
+        // AI: All enemies move sequentially to handle overlapping
+        for (const enemy of gameState.enemies) {
+          let updatedEnemy = { ...enemy };
           
-          const dx = Math.sign(gameState.player.x - enemy.x);
-          const dy = Math.sign(gameState.player.y - enemy.y);
+          // Use the current state of pieces to check pathfinding
+          const currentBoard = getCurrentBoard(newPlayer, [...movedEnemies, ...gameState.enemies.filter(e => !movedEnemies.some(me => me.id === e.id))]);
           
           // Try to capture player
-          if (isValidMove(enemy.type, enemy.x, enemy.y, gameState.player.x, gameState.player.y, board)) {
+          if (isValidMove(enemy.type, enemy.x, enemy.y, newPlayer.x, newPlayer.y, currentBoard)) {
             newPlayer.hp -= 1;
-            moved = true;
-            return enemy; // Stays in place after "attacking" or moves to player's square?
-            // In chess, they move to the square.
-          }
-
-          // Try to move closer
-          const possibleMoves = [];
-          for (let ty = 0; ty < BOARD_SIZE; ty++) {
-            for (let tx = 0; tx < BOARD_SIZE; tx++) {
-              if (isValidMove(enemy.type, enemy.x, enemy.y, tx, ty, board)) {
-                const dist = Math.sqrt(Math.pow(tx - gameState.player.x, 2) + Math.pow(ty - gameState.player.y, 2));
-                possibleMoves.push({ x: tx, y: ty, dist });
+            updatedEnemy = { ...enemy, x: newPlayer.x, y: newPlayer.y };
+          } else {
+            // Try to move closer
+            const possibleMoves = [];
+            for (let ty = 0; ty < BOARD_SIZE; ty++) {
+              for (let tx = 0; tx < BOARD_SIZE; tx++) {
+                if (isValidMove(enemy.type, enemy.x, enemy.y, tx, ty, currentBoard)) {
+                  // Check if any OTHER enemy is already at (tx, ty) in the NEW list or OLD list
+                  const isOccupiedByMoved = movedEnemies.some(e => e.x === tx && e.y === ty);
+                  const isOccupiedByWaiting = gameState.enemies.some(e => e.id !== enemy.id && !movedEnemies.some(me => me.id === e.id) && e.x === tx && e.y === ty);
+                  const isOccupiedByPlayer = newPlayer.x === tx && newPlayer.y === ty;
+                  
+                  if (!isOccupiedByMoved && !isOccupiedByWaiting && !isOccupiedByPlayer) {
+                    const dist = Math.sqrt(Math.pow(tx - newPlayer.x, 2) + Math.pow(ty - newPlayer.y, 2));
+                    possibleMoves.push({ x: tx, y: ty, dist });
+                  }
+                }
               }
             }
+
+            if (possibleMoves.length > 0) {
+              possibleMoves.sort((a, b) => a.dist - b.dist);
+              const bestMove = possibleMoves[0];
+              updatedEnemy = { ...enemy, x: bestMove.x, y: bestMove.y };
+            }
           }
-
-          if (possibleMoves.length > 0) {
-            // Sort by distance to player
-            possibleMoves.sort((a, b) => a.dist - b.dist);
-            const bestMove = possibleMoves[0];
-            moved = true;
-            return { ...enemy, x: bestMove.x, y: bestMove.y };
+          
+          // Calculate rotation to face player
+          const dx = newPlayer.x - updatedEnemy.x;
+          const dy = newPlayer.y - updatedEnemy.y;
+          if (dx !== 0 || dy !== 0) {
+            updatedEnemy.rotation = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
           }
+          
+          movedEnemies.push(updatedEnemy);
+        }
 
-          return enemy;
-        });
-
-        const status = checkGameOver(newPlayer, newEnemies);
+        const status = checkGameOver(newPlayer, movedEnemies);
         setGameState(prev => ({
           ...prev,
           player: newPlayer,
-          enemies: newEnemies,
+          enemies: movedEnemies,
           turn: 'player',
           isGameOver: status?.isGameOver || false,
           isVictory: status?.isVictory || false,
@@ -235,7 +253,7 @@ export default function App() {
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [gameState.turn, gameState.player, gameState.enemies, board, checkGameOver]);
+  }, [gameState.turn, gameState.player, gameState.enemies, checkGameOver]);
 
   const resetGame = () => {
     setGameState({
@@ -346,13 +364,18 @@ export default function App() {
                           isPlayer ? "text-neutral-950 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "text-white drop-shadow-[0_0_8px_rgba(255,0,0,0.5)]"
                         )}
                       >
-                        {React.createElement(PIECE_ICONS[piece.type], { 
-                          size: 32, 
-                          className: cn(
-                            isPlayer ? "fill-white stroke-neutral-950" : "fill-red-600 stroke-white",
-                            piece.hp < piece.maxHp && "opacity-70"
-                          )
-                        })}
+                        <motion.div
+                          animate={{ rotate: piece.rotation || 0 }}
+                          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                        >
+                          {React.createElement(PIECE_ICONS[piece.type], { 
+                            size: 32, 
+                            className: cn(
+                              isPlayer ? "fill-white stroke-neutral-950" : "fill-red-600 stroke-white",
+                              piece.hp < piece.maxHp && "opacity-70"
+                            )
+                          })}
+                        </motion.div>
                         
                         {/* HP Bar for enemies */}
                         {isEnemy && piece.maxHp > 1 && (

@@ -23,7 +23,7 @@ export function isValidMove(type: PieceType, fromX: number, fromY: number, toX: 
       return (dx === 1 && dy === 2) || (dx === 2 && dy === 1);
     case 'pawn':
       // Simplified pawn: move 1 forward, capture diagonal
-      const direction = -1; // White moves up (decreasing Y)
+      const direction = 1; // White enemies move down (increasing Y) towards the black player
       if (toX === fromX && toY === fromY + direction) {
         return !board[toY][toX];
       }
@@ -71,7 +71,7 @@ export function getInitialEnemies(floor: number): Piece[] {
   for (let i = 0; i < count; i++) {
     const type = i === 0 && floor > 1 ? enemyTypes[Math.floor(Math.random() * (enemyTypes.length - 1)) + 1] : 'pawn';
     enemies.push({
-      id: `enemy-${i}-${Date.now()}`,
+      id: `enemy-${i}-${Math.random().toString(36).substr(2, 9)}`,
       type,
       color: 'white',
       x: Math.floor(Math.random() * BOARD_SIZE),
