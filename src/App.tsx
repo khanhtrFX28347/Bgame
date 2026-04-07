@@ -192,9 +192,13 @@ export default function App() {
           // Function to get current board from pieces
           const getCurrentBoard = (player: Piece, currentEnemies: Piece[]) => {
             const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
-            newBoard[player.y][player.x] = player;
+            if (player.y >= 0 && player.y < BOARD_SIZE && player.x >= 0 && player.x < BOARD_SIZE) {
+              newBoard[player.y][player.x] = player;
+            }
             currentEnemies.forEach(e => {
-              newBoard[e.y][e.x] = e;
+              if (e.y >= 0 && e.y < BOARD_SIZE && e.x >= 0 && e.x < BOARD_SIZE) {
+                newBoard[e.y][e.x] = e;
+              }
             });
             return newBoard;
           };
@@ -206,7 +210,7 @@ export default function App() {
             newPlayer.hp -= 1;
             updatedEnemy = { ...enemy, x: newPlayer.x, y: newPlayer.y };
           } else {
-            // Try to move closer
+            // Try to move closer to the CURRENT player position
             const possibleMoves = [];
             for (let ty = 0; ty < BOARD_SIZE; ty++) {
               for (let tx = 0; tx < BOARD_SIZE; tx++) {
@@ -216,6 +220,7 @@ export default function App() {
                   const isOccupiedByPlayer = newPlayer.x === tx && newPlayer.y === ty;
                   
                   if (!isOccupiedByOtherEnemy && !isOccupiedByPlayer) {
+                    // Calculate distance to player's current position
                     const dist = Math.sqrt(Math.pow(tx - newPlayer.x, 2) + Math.pow(ty - newPlayer.y, 2));
                     possibleMoves.push({ x: tx, y: ty, dist });
                   }
@@ -224,6 +229,7 @@ export default function App() {
             }
 
             if (possibleMoves.length > 0) {
+              // Sort by distance to player - always chase the current player
               possibleMoves.sort((a, b) => a.dist - b.dist);
               const bestMove = possibleMoves[0];
               updatedEnemy = { ...enemy, x: bestMove.x, y: bestMove.y };
